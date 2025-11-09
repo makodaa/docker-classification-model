@@ -1,0 +1,49 @@
+services:
+    backend:
+        build: ./backend
+        ports:
+            - "8000:8000"
+        environment:
+            - MODEL_PATH=/app/models/model.pth
+            - DATABASE_URL=postgresql://classifier_user:secure_password@database:5432/classifier_db
+        volumes:
+            - ./backend/models:/app/models
+        depends_on:
+            - database
+        networks:
+            - app-network
+
+    frontend:
+        build: ./frontend
+        ports:
+            - "3000:80"
+        depends_on:
+            - backend
+        networks:
+            - app-network
+
+    database:
+        image: postgres:15-alpine
+        environment:
+            - POSTGRES_DB=classifier_db
+            - POSTGRES_USER=classifier_user
+            - POSTGRES_PASSWORD=secure_password
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+        healthcheck:
+            test: pg_isready -U classifier_user -d classifier_db
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - app-network
+
+networks:
+    app-network:
+        driver: bridge
+
+volumes:
+    postgres_data:
