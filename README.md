@@ -135,6 +135,129 @@ curl http://localhost:8000/info
 curl -X POST -F "image=@/path/to/image.jpg" http://localhost:8000/predict
 ```
 
+### Windows (PowerShell / Command Prompt / WSL)
+
+If you're developing on Windows, there are platform-specific differences and several options (native Windows vs WSL). Using WSL2 is the simplest way to match the Linux environment used by Docker. If you prefer native Windows, follow these steps.
+
+1. Install PostgreSQL
+
+-   Option A: PostgreSQL installer (recommended for native Windows)
+
+    -   Download and run the PostgreSQL installer for Windows (choose a recent 14/15 build). The installer configures a postgres service and provides `psql` and `pgAdmin`.
+    -   Ensure the `bin` folder (for example `C:\Program Files\PostgreSQL\15\bin`) is on your PATH so `psql` is available from the terminal.
+
+-   Option B: Chocolatey (if you use it)
+    ```powershell
+    choco install postgresql
+    # then open a new shell so PATH updates
+    ```
+
+2. Create DB user and database, then run `init.sql`
+
+PowerShell / Command Prompt (run as an admin if needed):
+
+```powershell
+# From the repo root (adjust the path to psql if it's not on PATH):
+# If psql is not on PATH, use the full path, e.g. "C:\\Program Files\\PostgreSQL\\15\\bin\\psql.exe"
+psql -U postgres -c "CREATE USER classifier_user WITH PASSWORD 'secure_password';"
+psql -U postgres -c "CREATE DATABASE classifier_db OWNER classifier_user;"
+psql -U classifier_user -d classifier_db -f database\init.sql
+```
+
+Notes:
+
+-   If you used the installer you may have a password set for the `postgres` superuser — use that password when prompted.
+-   If commands fail due to PATH, call `psql.exe` with its absolute installation path.
+
+3. Python virtual environment and dependencies (backend)
+
+Command Prompt / PowerShell:
+
+```powershell
+cd backend
+python -m venv .venv
+
+# Activate (PowerShell)
+.\.venv\Scripts\Activate.ps1
+
+# If PowerShell blocks scripts, allow user-level script execution:
+# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Activate (cmd.exe)
+# .venv\Scripts\activate.bat
+
+pip install --upgrade pip
+# Install PyTorch carefully: use the PyTorch install selector for Windows if you need CUDA.
+# Example CPU-only install (may need adaptation):
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+pip install -r requirements.txt
+```
+
+4. Environment variables on Windows
+
+PowerShell (session-only):
+
+```powershell
+$env:MODEL_PATH = (Join-Path (Get-Location) 'models\\model.pth')
+$env:LABELS_PATH = (Join-Path (Get-Location) 'models\\class_labels.json')
+$env:DATABASE_URL = 'postgresql://classifier_user:secure_password@localhost:5432/classifier_db'
+```
+
+Command Prompt (session-only):
+
+```cmd
+set MODEL_PATH=C:\\full\\path\\to\\backend\\models\\model.pth
+set LABELS_PATH=C:\\full\\path\\to\\backend\\models\\class_labels.json
+set DATABASE_URL=postgresql://classifier_user:secure_password@localhost:5432/classifier_db
+```
+
+To persist environment variables across sessions, use `setx` or set them in System Properties.
+
+5. Run the backend on Windows
+
+-   Development (debug):
+
+```powershell
+python app.py
+```
+
+-   Production-like: Gunicorn does not run on Windows. Use Waitress (a pure-Python WSGI server) or run the backend inside WSL/Docker for closer parity.
+
+Install and run Waitress:
+
+```powershell
+pip install waitress
+waitress-serve --listen=0.0.0.0:8000 app:app
+```
+
+6. Serve the frontend locally on Windows
+
+```powershell
+cd frontend\public
+python -m http.server 3000
+
+# Or use Node's static servers if you have Node installed:
+# npx serve -l 3000
+```
+
+7. Verify endpoints (PowerShell)
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+Invoke-RestMethod http://localhost:8000/info
+
+# For file uploads use a tool like Postman or curl from WSL (Windows' curl may map to Invoke-WebRequest).
+```
+
+Windows-specific troubleshooting
+
+-   `psql` not found: ensure the Postgres `bin` folder is on PATH or call `psql.exe` with its absolute path.
+-   Firewall: Windows Firewall may block incoming connections — allow the ports you need (8000, 3000, 5432) or access via `localhost`.
+-   Virtualenv activation blocked: PowerShell's execution policy may block script activation. Use `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` to allow venv activation.
+-   PyTorch wheel selection: Windows users needing CUDA must install a torch wheel matched to their CUDA driver. If unsure, install the CPU wheel or use WSL/Docker where GPU access can be more straightforward.
+-   For production or testing parity, prefer WSL2 or Docker as they more closely match the Linux environment in the Compose setup.
+
 Common issues and checks
 
 -   Database connection errors: verify `DATABASE_URL` credentials, that Postgres is listening on the expected port, and `database/init.sql` ran successfully.
