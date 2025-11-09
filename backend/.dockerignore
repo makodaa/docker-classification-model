@@ -1,0 +1,4 @@
+.venv_notebook
+.backup
+train_data
+trainer_notebook.ipynb
