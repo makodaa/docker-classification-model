@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Plant Classification Service</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div class="nav">
+            <h2>Image Classification as a Service</h2>
+        </div>
+        <div class="main">
+            <div class="container grow">
+                <section id="upload-section">
+                    <div class="description-header">
+                        <h3>Description</h3>
+                    </div>
+                    <div class="description-list">
+                        <p>
+                            The following project is a full stack application
+                            for an image classification service for invasive
+                            plants.
+                        </p>
+                        <ul>
+                            <li>
+                                Frontend - Written in Vanilla JS, provides an
+                                interface for image upload and classification
+                            </li>
+                            <li>
+                                Backend - Written in Python, loads the image
+                                classification model and the database, and
+                                provides Flask API endpoints for the frontend.
+                            </li>
+                            <li>
+                                Database - A PostgreSQL database which stores
+                                classification result history.
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="description-text">
+                        <p>
+                            Each layer of the full stack application is
+                            containerized using Docker. Each container holds the
+                            dependencies of that layer, isolated from what the
+                            machine currently has.
+                        </p>
+                    </div>
+                    <div class="upload-header">
+                        <h3>File Upload</h3>
+                    </div>
+                    <div class="image-display hidden"></div>
+                    <input type="file" id="image-input" accept="image/*" />
+                    <button onclick="handleUpload()">Classify Image</button>
+                </section>
+                <section id="result-section">
+                    <div class="result-header">
+                        <h3>Prediction Result</h3>
+                    </div>
+                    <div id="result-list"></div>
+                </section>
+            </div>
+            <div class="container shrink">
+                <section id="history-section">
+                    <div class="history-header">
+                        <h3>Classification History</h3>
+                    </div>
+                    <div id="history-list"></div>
+                </section>
+            </div>
+        </div>
+        <script src="app.js" defer></script>
+    </body>
+</html>
