@@ -238,9 +238,20 @@ function formatTimestamp(timestamp) {
 }
 
 async function clearHistory() {
-    if (!confirm("Clear all classification history?")) return;
+    if (
+        !confirm(
+            "Are you sure you want to clear all classification history? This action cannot be undone."
+        )
+    )
+        return;
+
+    const button = document.getElementById("clear-history-btn");
+    const originalText = button.textContent;
 
     try {
+        button.disabled = true;
+        button.textContent = "Clearing...";
+
         const response = await fetch("/api/history", {
             method: "DELETE",
         });
@@ -249,9 +260,23 @@ async function clearHistory() {
             throw new Error("Failed to clear history");
         }
 
-        loadHistory(); // Refresh display
+        const result = await response.json();
+        console.log(`Cleared ${result.deleted_count || 0} history records`);
+
+        // Refresh display
+        await loadHistory();
+
+        // Show success feedback
+        button.textContent = "Cleared!";
+        setTimeout(() => {
+            button.textContent = originalText;
+        }, 2000);
     } catch (error) {
+        console.error("Failed to clear history:", error);
         alert("Failed to clear history: " + error.message);
+        button.textContent = originalText;
+    } finally {
+        button.disabled = false;
     }
 }
 
