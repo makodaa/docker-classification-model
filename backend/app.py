@@ -35,7 +35,7 @@ class JsonFormatter(logging.Formatter):
             log_data['exception'] = self.formatException(record.exc_info)
         
         # Add extra fields if present (e.g., request_id, user_id)
-        for key in ['request_id', 'user_id', 'filename', 'confidence', 'prediction']:
+        for key in ['request_id', 'user_id', 'image_filename', 'confidence', 'prediction']:
             if hasattr(record, key):
                 log_data[key] = getattr(record, key)
             
@@ -421,7 +421,7 @@ def predict_endpoint():
 
         logger.info(
             f"Processing image: {file.filename}",
-            extra={'request_id': g.request_id, 'filename': file.filename}
+            extra={'request_id': g.request_id, 'image_filename': file.filename}
         )
 
         # timing for processing
@@ -471,7 +471,7 @@ def predict_endpoint():
             f"({result['predictions'][0]['confidence']*100:.2f}%)",
             extra={
                 'request_id': g.request_id,
-                'filename': file.filename,
+                'image_filename': file.filename,
                 'prediction': result['predictions'][0]['label'],
                 'confidence': result['predictions'][0]['confidence']
             }
