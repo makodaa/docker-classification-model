@@ -2,18 +2,27 @@
 
 ## What this project is
 
-This repository contains a small image-classification service for detecting invasive plant species. It is packaged to run with Docker Compose and includes three services:
+This repository contains a **production-ready image classification service** for detecting invasive plant species with **complete observability** (monitoring, logging, and alerting). It is packaged to run with Docker Compose and includes seven services:
 
--   backend: a Python classifier service (model weights in `backend/models/model.pth`).
--   frontend: a static web UI served by nginx (files under `frontend/public`).
--   database: a PostgreSQL instance initialized using `database/init.sql`.
+-   **backend**: A Python classifier service with PyTorch model inference (model weights in `backend/models/model.pth`).
+-   **frontend**: A static web UI served by nginx (files under `frontend/public`).
+-   **database**: A PostgreSQL instance initialized using `database/init.sql`.
+-   **prometheus**: Metrics collection and alerting engine.
+-   **grafana**: Unified visualization for metrics and logs with auto-provisioned dashboards.
+-   **loki**: Centralized log aggregation and storage.
+-   **promtail**: Log collection agent that ships container logs to Loki.
 
 The repo layout (relevant parts):
 
--   `backend/` — Python app, model weights, and `requirements.txt`.
+-   `backend/` — Python app with Prometheus metrics and structured logging, model weights, and `requirements.txt`.
 -   `frontend/` — Dockerfile, `public/` static UI files.
 -   `database/` — `init.sql` used to initialize the Postgres database in Docker.
--   `docker-compose.yml` — orchestrates the three services.
+-   `prometheus/` — Prometheus configuration and 11 production-ready alert rules.
+-   `grafana/` — Auto-provisioned dashboards and datasource configurations.
+-   `loki/` — Loki and Promtail configurations for centralized logging.
+-   `scripts/` — Automated test scripts for monitoring, alerting, and logging.
+-   `notes/` — Comprehensive documentation (monitoring, logging, alerting guides).
+-   `docker-compose.yml` — orchestrates all seven services.
 
 ## Quick start (with Docker)
 
@@ -24,53 +33,144 @@ Prerequisites:
 From the project root run:
 
 ```bash
-# build and start all services (backend:8000, frontend:3000, db:5432)
-docker compose up --build
+# Build and start all services (7 containers)
+docker compose up --build -d
+
+# Wait for services to initialize (~30 seconds)
+sleep 30
+
+# Verify all services are healthy
+docker compose ps
+
+# Run comprehensive tests
+./scripts/test-monitoring.sh
+./scripts/test-alerts.sh
+./scripts/test-logging.sh
 ```
 
 **Services exposed:**
 
--   Backend API: http://localhost:8000
--   Frontend UI: http://localhost:3000
--   Prometheus (monitoring): http://localhost:9090
--   Grafana (dashboards): http://localhost:3002 (admin/admin)
+-   **Frontend UI**: http://localhost:3000
+-   **Backend API**: http://localhost:8000
+-   **Backend Metrics**: http://localhost:8000/metrics
+-   **Prometheus**: http://localhost:9090
+-   **Grafana**: http://localhost:3002 (admin/admin)
+-   **Loki**: http://localhost:3100
+-   **Database**: localhost:5432
+
+**Key Features:**
+
+-   **Metrics**: Request count, latency histograms (P50/P95/P99), error tracking by type
+-   **Dashboards**: 2 auto-provisioned Grafana dashboards (6 metric panels + 8 log panels)
+-   **Logging**: Structured JSON logs with request correlation (unique request_id)
+-   **Alerting**: 11 production-ready alert rules (latency, error rate, service health)
+-   **Persistence**: Data volumes for database, metrics (15 days), and logs (30 days)
 
 Notes:
 
 -   The backend service exposes port 8000 on the host. The frontend is exposed on port 3000.
 -   The Compose file maps `./backend/models` into the backend container so you can replace `model.pth` without rebuilding the image.
 -   Environment variables in `docker-compose.yml` provide `MODEL_PATH` and `DATABASE_URL` to the backend service.
--   **NEW**: Monitoring and observability stack included (Prometheus + Grafana). See [MONITORING.md](MONITORING.md) for details.
+-   All dashboards and datasources are auto-provisioned — no manual Grafana configuration needed.
 
 Stopping the stack:
 
 ```bash
+# Stop services (keeps data volumes)
 docker compose down
+
+# Stop and remove all data (clean slate)
+docker compose down -v
 ```
 
-### Monitoring and Observability
+### Observability Stack
 
-This project includes a complete monitoring stack with Prometheus and Grafana:
+This project includes a **complete production-grade observability stack**:
+
+#### 1. Metrics (Prometheus + Grafana)
 
 ```bash
-# Quick demo of monitoring features
-./demo-monitoring.sh
+# Run automated tests
+./scripts/test-monitoring.sh
 
-# Run comprehensive tests
-./test-monitoring.sh
+# Generate sample traffic
+for i in {1..10}; do
+  curl -X POST -F "image=@backend/test_data/crasipes.jpg" http://localhost:8000/predict
+  sleep 1
+done
+
+# View metrics dashboard
+open http://localhost:3002  # Grafana: Dashboards → Backend ML Service Monitoring
 ```
 
-Monitored metrics:
+**Metrics collected:**
 
--   Request rate and total predictions
--   Processing latency (50th, 95th, 99th percentiles)
--   Real-time metrics visualization in Grafana
+-   `prediction_requests_total` - Total prediction requests
+-   `prediction_processing_time_ms` - Latency histogram (P50, P95, P99)
+-   `prediction_errors_total{error_type}` - Errors by type (5 categories)
 
-Documentation:
+**Dashboard panels:** Request rate, total predictions, latency percentiles, latency distribution, average latency gauge, P95 gauge
 
--   [MONITORING.md](MONITORING.md) - Complete monitoring documentation
--   [TESTING.md](TESTING.md) - Testing guide and commands
--   [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Technical details
+#### 2. Centralized Logging (Loki + Promtail)
+
+```bash
+# Run automated tests
+./scripts/test-logging.sh
+
+# Query logs via API
+curl -G "http://localhost:3100/loki/api/v1/query" \
+  --data-urlencode 'query={container="backend"}' \
+  --data-urlencode 'limit=10' | jq
+
+# View logs in Grafana
+open http://localhost:3002  # Explore → Loki or Centralized Logging Dashboard
+```
+
+**Features:**
+
+-   Structured JSON logs with request correlation (request_id)
+-   Log fields: timestamp, level, message, module, function, custom fields
+-   Automatic container log discovery via Docker socket
+-   30-day retention (configurable)
+
+**Example queries (LogQL):**
+
+```logql
+{container="backend"}                           # All backend logs
+{container="backend", level="ERROR"}            # Error logs only
+{container="backend"} |= "Prediction successful" # Successful predictions
+{container="backend"} | json | confidence > 0.9  # High confidence predictions
+```
+
+#### 3. Alerting (Prometheus Alert Rules)
+
+```bash
+# Run alert tests
+./scripts/test-alerts.sh
+
+# View alerts in Prometheus
+open http://localhost:9090/alerts
+```
+
+**11 alert rules across 4 categories:**
+
+-   **Latency**: High average (>1000ms), critical (>3000ms), P95 (>2000ms), P99 (>5000ms)
+-   **Error Rate**: High (>5%), critical (>25%), no requests for 5min
+-   **Specific Errors**: Model not loaded, high processing errors
+-   **Service Health**: Backend down, high memory usage
+
+**Error types tracked:**
+
+-   `model_not_loaded`, `no_image_provided`, `empty_filename`, `file_too_large`, `processing_error`
+
+#### Documentation
+
+-   **[notes/MONITORING.md](notes/MONITORING.md)** - Complete monitoring guide with PromQL queries
+-   **[notes/LOGGING.md](notes/LOGGING.md)** - Logging guide with LogQL examples
+-   **[notes/ALERTING.md](notes/ALERTING.md)** - Alert configuration and testing
+-   **[notes/TESTING_CHECKLIST.md](notes/TESTING_CHECKLIST.md)** - Testing procedures
+-   **[notes/FEATURE_MATRIX.md](notes/FEATURE_MATRIX.md)** - Feature implementation status
+-   **[notes/PROJECT_DOCUMENTATION.md](notes/PROJECT_DOCUMENTATION.md)** - Complete feature guide
 
 ## Run without Docker (development / manual)
 
@@ -314,21 +414,128 @@ Why running without Docker is different (expanded)
 
 If you'd like, I can add a small helper script such as `scripts/run-local-backend.sh` to automate the backend steps above and a `scripts/init-db.sh` to run the `psql` commands (with safety checks). Let me know if you want me to add those files.
 
+## API Endpoints
+
+The backend exposes the following endpoints:
+
+-   `POST /predict` - Upload image for classification (returns predictions with confidence scores)
+-   `GET /health` - Service health check (includes model load status)
+-   `GET /info` - Model metadata and system information
+-   `GET /history` - Retrieve prediction history
+-   `DELETE /history` - Clear prediction history
+-   `GET /metrics` - Prometheus metrics endpoint (request count, latency, errors)
+
+**Request correlation:** Each request receives a unique `request_id` that appears in:
+
+-   Response body
+-   Response headers (`X-Request-ID`)
+-   Structured logs (for tracing)
+
 ## Environment variables used by the backend
 
--   MODEL_PATH — path to the model file (default in Docker: `/app/models/model.pth`).
--   DATABASE_URL — SQLAlchemy/Postgres connection URL used by the app.
+-   **MODEL_PATH** — Path to the model file (default in Docker: `/app/models/model.pth`).
+-   **LABELS_PATH** — Path to class labels JSON file.
+-   **DATABASE_URL** — SQLAlchemy/Postgres connection URL used by the app.
 
 ## Where to look next
 
--   `backend/` — inspect `app.py` and `requirements.txt` to adapt the local run command if needed.
--   `backend/models/` — replace `model.pth` with your trained model if you want different behavior.
--   `frontend/public` — edit UI files.
+-   **`backend/`** — Inspect `app.py` (with Prometheus metrics and JSON logging) and `requirements.txt`.
+-   **`backend/models/`** — Replace `model.pth` with your trained model if you want different behavior.
+-   **`frontend/public`** — Edit UI files.
+-   **`prometheus/`** — Modify alert rules or scrape configuration.
+-   **`grafana/dashboards/`** — Customize pre-built dashboards.
+-   **`loki/`** — Adjust log retention or parsing configuration.
+-   **`scripts/`** — Review or modify test scripts.
+-   **`notes/`** — Comprehensive documentation for all features.
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       Docker Compose Stack                       │
+│                                                                  │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                      │
+│  │ Backend  │  │ Frontend │  │ Database │                      │
+│  │  :8000   │  │  :3000   │  │  :5432   │                      │
+│  └────┬─────┘  └──────────┘  └──────────┘                      │
+│       │                                                          │
+│       │ Metrics (/metrics)        Logs (stdout/stderr)         │
+│       │                                  │                      │
+│       ▼                                  ▼                      │
+│  ┌──────────┐                      ┌──────────┐                │
+│  │Prometheus│◄──Alert Rules────┐   │ Promtail │                │
+│  │  :9090   │                  │   │          │                │
+│  └────┬─────┘                  │   └────┬─────┘                │
+│       │                        │        │                      │
+│       │ Datasource             │        │ Logs                 │
+│       ▼                        │        ▼                      │
+│  ┌──────────┐                  │   ┌──────────┐                │
+│  │ Grafana  │◄─────────────────┘   │   Loki   │                │
+│  │  :3002   │◄──Datasource─────────┤  :3100   │                │
+│  └──────────┘                      └──────────┘                │
+│       │                                                          │
+│       └─ Auto-provisioned: 2 Dashboards, 2 Datasources         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Production Readiness
+
+**Implemented ✅:**
+
+-   Health checks for all services
+-   Metrics collection and visualization
+-   Centralized logging with structured logs
+-   Proactive alerting with 11 alert rules
+-   Request correlation for distributed tracing
+-   Persistent storage for data, metrics, and logs
+-   Auto-provisioned dashboards (zero manual config)
+-   Comprehensive test scripts
+-   Error categorization and tracking
+-   Resource limits and restart policies
+
+**Recommended for production 🔧:**
+
+-   Add authentication/authorization (JWT, OAuth)
+-   Implement rate limiting
+-   Add SSL/TLS termination (reverse proxy)
+-   Set up Alertmanager for notifications (email, Slack, PagerDuty)
+-   Configure long-term storage for metrics/logs (S3, GCS)
+-   Implement CI/CD pipeline
+-   Add GPU support for faster inference
+-   Configure backup automation
+-   Implement secrets management (Docker secrets, Vault)
 
 ## Troubleshooting
 
--   If the backend can't connect to Postgres in Docker, check `docker compose ps` and the database service logs.
--   If the frontend shows an error connecting to the backend, ensure the backend is reachable from the browser and CORS (if used) is configured appropriately.
+### General Issues
+
+-   **Backend can't connect to Postgres**: Check `docker compose ps` and database service logs with `docker compose logs database`.
+-   **Frontend shows connection error**: Ensure backend is reachable at `http://localhost:8000` and CORS is configured.
+-   **Services not starting**: Check logs with `docker compose logs <service-name>`.
+
+### Monitoring Issues
+
+-   **Metrics not appearing**: Run `./scripts/test-monitoring.sh` to diagnose issues.
+-   **Dashboards empty**: Wait 1-2 minutes for initial data, check time range in Grafana (top-right).
+-   **Prometheus not scraping**: Check targets at http://localhost:9090/targets.
+
+### Logging Issues
+
+-   **Logs not in Loki**: Run `./scripts/test-logging.sh` to validate the stack.
+-   **Loki container crashes**: Check disk space with `df -h` and `docker system df`.
+-   **JSON parsing fails**: Verify backend outputs JSON logs with `docker logs backend | head`.
+
+### Alert Issues
+
+-   **Alerts not firing**: Check alert rules loaded at http://localhost:9090/rules.
+-   **Alert stays inactive**: Verify metric conditions with Prometheus queries.
+-   **Test alerts**: Use `./scripts/test-alerts.sh` for interactive testing.
+
+### Performance Issues
+
+-   **High latency**: Check Grafana latency dashboard, review concurrent request handling.
+-   **High memory usage**: Monitor with `docker stats`, adjust resource limits if needed.
+-   **Disk space issues**: Check volume sizes with `docker system df -v`.
 
 ## License / attribution
 
