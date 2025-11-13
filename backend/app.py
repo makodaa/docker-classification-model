@@ -2,26 +2,82 @@ import os
 import json
 import logging
 import time
+import uuid
+from datetime import datetime
 
 import numpy as np
 from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, g
 from flask_cors import CORS
 from database import Database
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
+
+class JsonFormatter(logging.Formatter):
+    """Custom JSON formatter for structured logging compatible with Loki"""
+    def format(self, record):
+        log_data = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'levelname': record.levelname,
+            'name': record.name,
+            'message': record.getMessage(),
+            'module': record.module,
+            'funcName': record.funcName,
+            'lineno': record.lineno,
+            'asctime': self.formatTime(record, '%Y-%m-%d %H:%M:%S,%f')[:-3]
+        }
+        
+        # Add exception info if present
+        if record.exc_info:
+            log_data['exception'] = self.formatException(record.exc_info)
+        
+        # Add extra fields if present (e.g., request_id, user_id)
+        for key in ['request_id', 'user_id', 'filename', 'confidence', 'prediction']:
+            if hasattr(record, key):
+                log_data[key] = getattr(record, key)
+            
+        return json.dumps(log_data)
+
+
+# Configure logging with JSON formatter
+handler = logging.StreamHandler()
+handler.setFormatter(JsonFormatter())
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    handlers=[handler]
 )
 
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
+
+
+@app.before_request
+def before_request():
+    """Generate a unique request ID for each request for log correlation"""
+    g.request_id = str(uuid.uuid4())
+    logger.info(
+        f"Request started: {request.method} {request.path}",
+        extra={'request_id': g.request_id}
+    )
+
+
+@app.after_request
+def after_request(response):
+    """Log request completion with status code"""
+    logger.info(
+        f"Request completed: {request.method} {request.path} - {response.status_code}",
+        extra={'request_id': g.request_id}
+    )
+    # Add request ID to response headers for client-side correlation
+    response.headers['X-Request-ID'] = g.request_id
+    return response
+
 
 # Constants definitions
 MODEL_PATH = os.getenv('MODEL_PATH', './models/model.pth')
@@ -39,6 +95,7 @@ db = Database()
 
 # Prometheus metrics
 REQUEST_COUNT = Counter('prediction_requests_total', 'Total prediction requests')
+REQUEST_ERRORS = Counter('prediction_errors_total', 'Total prediction errors', ['error_type'])
 PREDICTION_PROCESSING_TIME_MS = Histogram(
     'prediction_processing_time_ms',
     'Prediction processing time in milliseconds',
@@ -314,12 +371,14 @@ def predict_endpoint():
 
     """
     if model is None:
+        REQUEST_ERRORS.labels(error_type='model_not_loaded').inc()
         return jsonify({
             'success': False,
             'error': 'Model not loaded'
         }), 500
     
     if 'image' not in request.files:
+        REQUEST_ERRORS.labels(error_type='no_image_provided').inc()
         return jsonify({
             'success': False,
             'error': 'No image file provided. Please upload an image using the "image" field.'
@@ -328,6 +387,7 @@ def predict_endpoint():
     file = request.files['image']
     
     if file.filename == '':
+        REQUEST_ERRORS.labels(error_type='empty_filename').inc()
         return jsonify({
             'success': False,
             'error': 'Empty filename'
@@ -338,6 +398,7 @@ def predict_endpoint():
     file.seek(0)
     
     if file_size > MAX_IMAGE_SIZE:
+        REQUEST_ERRORS.labels(error_type='file_too_large').inc()
         return jsonify({
             'success': False,
             'error': f'File too large. Maximum size is {MAX_IMAGE_SIZE / (1024*1024)}MB'
@@ -358,7 +419,10 @@ def predict_endpoint():
         # Record that a prediction request was received
         REQUEST_COUNT.inc()
 
-        logger.info(f"Processing image: {file.filename}")
+        logger.info(
+            f"Processing image: {file.filename}",
+            extra={'request_id': g.request_id, 'filename': file.filename}
+        )
 
         # timing for processing
         start_ts = time.time()
@@ -368,6 +432,7 @@ def predict_endpoint():
         processing_time_ms = (time.time() - start_ts) * 1000.0
 
         result['filename'] = file.filename
+        result['request_id'] = g.request_id
         result.setdefault('model_info', {})
         result['model_info']['processing_time_ms'] = processing_time_ms
 
@@ -396,14 +461,26 @@ def predict_endpoint():
                     # attach DB metadata
                     result['history_record'] = saved
         except Exception as e:
-            logger.warning(f"Could not persist history: {e}")
+            logger.warning(
+                f"Could not persist history: {e}",
+                extra={'request_id': g.request_id}
+            )
 
-        logger.info(f"Prediction successful: {result['predictions'][0]['label']} "
-                   f"({result['predictions'][0]['confidence']*100:.2f}%)")
+        logger.info(
+            f"Prediction successful: {result['predictions'][0]['label']} "
+            f"({result['predictions'][0]['confidence']*100:.2f}%)",
+            extra={
+                'request_id': g.request_id,
+                'filename': file.filename,
+                'prediction': result['predictions'][0]['label'],
+                'confidence': result['predictions'][0]['confidence']
+            }
+        )
 
         return jsonify(result)
     
     except Exception as e:
+        REQUEST_ERRORS.labels(error_type='processing_error').inc()
         logger.error(f"Error processing request: {e}")
         return jsonify({
             'success': False,

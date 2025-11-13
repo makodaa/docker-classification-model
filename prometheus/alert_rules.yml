@@ -1,0 +1,170 @@
+groups:
+    - name: ml_backend_alerts
+      interval: 30s
+      rules:
+          # High Latency Alerts
+          - alert: HighAverageLatency
+            expr: |
+                rate(prediction_processing_time_ms_sum[5m]) 
+                / 
+                rate(prediction_processing_time_ms_count[5m]) 
+                > 1000
+            for: 2m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "High average prediction latency detected"
+                description: "Average prediction processing time is {{ $value | humanize }}ms (threshold: 1000ms) over the last 5 minutes."
+                impact: "Users are experiencing slow predictions"
+                action: "Check backend logs, review model performance, consider scaling resources"
+
+          - alert: CriticalAverageLatency
+            expr: |
+                rate(prediction_processing_time_ms_sum[5m]) 
+                / 
+                rate(prediction_processing_time_ms_count[5m]) 
+                > 3000
+            for: 1m
+            labels:
+                severity: critical
+                component: backend
+            annotations:
+                summary: "Critical prediction latency detected"
+                description: "Average prediction processing time is {{ $value | humanize }}ms (threshold: 3000ms) over the last 5 minutes."
+                impact: "Service is severely degraded, users experiencing very slow predictions"
+                action: "IMMEDIATE ACTION REQUIRED: Check backend health, restart service if needed, review resource utilization"
+
+          - alert: HighP95Latency
+            expr: |
+                histogram_quantile(0.95, 
+                  rate(prediction_processing_time_ms_bucket[5m])
+                ) > 2000
+            for: 3m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "High P95 latency detected"
+                description: "95th percentile latency is {{ $value | humanize }}ms (threshold: 2000ms) over the last 5 minutes."
+                impact: "5% of requests are taking longer than expected"
+                action: "Investigate slow requests, check for resource constraints"
+
+          - alert: HighP99Latency
+            expr: |
+                histogram_quantile(0.99, 
+                  rate(prediction_processing_time_ms_bucket[5m])
+                ) > 5000
+            for: 2m
+            labels:
+                severity: critical
+                component: backend
+            annotations:
+                summary: "Critical P99 latency detected"
+                description: "99th percentile latency is {{ $value | humanize }}ms (threshold: 5000ms) over the last 5 minutes."
+                impact: "Worst-case user experience is very poor"
+                action: "Check for outlier requests, review system resources, consider horizontal scaling"
+
+          # Error Rate Alerts
+          - alert: HighErrorRate
+            expr: |
+                sum(rate(prediction_errors_total[5m])) 
+                / 
+                sum(rate(prediction_requests_total[5m])) 
+                > 0.05
+            for: 2m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "High error rate detected"
+                description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%) over the last 5 minutes."
+                impact: "Users are experiencing prediction failures"
+                action: "Check error logs, review recent changes, verify model and dependencies are loaded"
+
+          - alert: CriticalErrorRate
+            expr: |
+                sum(rate(prediction_errors_total[5m])) 
+                / 
+                sum(rate(prediction_requests_total[5m])) 
+                > 0.25
+            for: 1m
+            labels:
+                severity: critical
+                component: backend
+            annotations:
+                summary: "Critical error rate detected"
+                description: "Error rate is {{ $value | humanizePercentage }} (threshold: 25%) over the last 5 minutes."
+                impact: "Service is severely degraded, majority of requests are failing"
+                action: "IMMEDIATE ACTION REQUIRED: Check service health, restart if needed, roll back recent changes"
+
+          - alert: NoRequests
+            expr: |
+                rate(prediction_requests_total[5m]) == 0
+            for: 5m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "No prediction requests received"
+                description: "Backend has not received any prediction requests in the last 5 minutes."
+                impact: "Service may be unreachable or not receiving traffic"
+                action: "Verify service is running, check network connectivity, review load balancer configuration"
+
+          # Specific Error Type Alerts
+          - alert: ModelNotLoadedErrors
+            expr: |
+                rate(prediction_errors_total{error_type="model_not_loaded"}[5m]) > 0
+            for: 1m
+            labels:
+                severity: critical
+                component: backend
+            annotations:
+                summary: "Model not loaded errors detected"
+                description: "Backend is receiving requests but model is not loaded."
+                impact: "All predictions are failing"
+                action: "IMMEDIATE ACTION REQUIRED: Check model loading process, verify model files exist, restart service"
+
+          - alert: HighProcessingErrors
+            expr: |
+                rate(prediction_errors_total{error_type="processing_error"}[5m]) > 0.1
+            for: 3m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "High rate of processing errors"
+                description: "{{ $value | humanize }} processing errors per second over the last 5 minutes."
+                impact: "Predictions are failing during processing"
+                action: "Check logs for error details, verify model compatibility, review input validation"
+
+          # Service Health Alerts
+          - alert: BackendDown
+            expr: up{job="backend"} == 0
+            for: 1m
+            labels:
+                severity: critical
+                component: backend
+            annotations:
+                summary: "Backend service is down"
+                description: "Prometheus cannot scrape metrics from backend service."
+                impact: "Service is completely unavailable"
+                action: "IMMEDIATE ACTION REQUIRED: Check if container is running, review logs, restart service"
+
+          - alert: HighMemoryUsage
+            expr: |
+                (prediction_requests_total - prediction_requests_total offset 1h) > 1000
+                and
+                rate(prediction_processing_time_ms_sum[5m]) 
+                / 
+                rate(prediction_processing_time_ms_count[5m]) 
+                > 2000
+            for: 5m
+            labels:
+                severity: warning
+                component: backend
+            annotations:
+                summary: "Possible memory pressure detected"
+                description: "High request volume ({{ $value }} in last hour) with degraded latency suggests resource constraints."
+                impact: "Service performance is degrading under load"
+                action: "Monitor memory usage, consider increasing container resources or scaling horizontally"

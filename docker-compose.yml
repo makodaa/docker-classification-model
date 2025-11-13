@@ -80,6 +80,7 @@ services:
         container_name: prometheus
         volumes:
             - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
             - prometheus_data:/prometheus
         ports:
             - "9090:9090"
@@ -104,6 +105,44 @@ services:
         networks:
             - app-network
         restart: unless-stopped
+
+    loki:
+        image: grafana/loki:2.9.0
+        container_name: loki
+        ports:
+            - "3100:3100"
+        volumes:
+            - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+            - loki_data:/loki
+        command: -config.file=/etc/loki/local-config.yaml
+        networks:
+            - app-network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: "1.0"
+                    memory: 1G
+
+    promtail:
+        image: grafana/promtail:2.9.0
+        container_name: promtail
+        volumes:
+            - ./loki/promtail-config.yml:/etc/promtail/config.yml:ro
+            - /var/lib/docker/containers:/var/lib/docker/containers:ro
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        command: -config.file=/etc/promtail/config.yml
+        networks:
+            - app-network
+        depends_on:
+            - loki
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: "0.5"
+                    memory: 256M
+
 networks:
     app-network:
         driver: bridge
@@ -112,3 +151,4 @@ volumes:
     db_data:
     prometheus_data:
     grafana_data:
+    loki_data:
