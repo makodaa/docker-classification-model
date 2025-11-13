@@ -28,17 +28,49 @@ From the project root run:
 docker compose up --build
 ```
 
+**Services exposed:**
+
+-   Backend API: http://localhost:8000
+-   Frontend UI: http://localhost:3000
+-   Prometheus (monitoring): http://localhost:9090
+-   Grafana (dashboards): http://localhost:3002 (admin/admin)
+
 Notes:
 
 -   The backend service exposes port 8000 on the host. The frontend is exposed on port 3000.
 -   The Compose file maps `./backend/models` into the backend container so you can replace `model.pth` without rebuilding the image.
 -   Environment variables in `docker-compose.yml` provide `MODEL_PATH` and `DATABASE_URL` to the backend service.
+-   **NEW**: Monitoring and observability stack included (Prometheus + Grafana). See [MONITORING.md](MONITORING.md) for details.
 
 Stopping the stack:
 
 ```bash
 docker compose down
 ```
+
+### Monitoring and Observability
+
+This project includes a complete monitoring stack with Prometheus and Grafana:
+
+```bash
+# Quick demo of monitoring features
+./demo-monitoring.sh
+
+# Run comprehensive tests
+./test-monitoring.sh
+```
+
+Monitored metrics:
+
+-   Request rate and total predictions
+-   Processing latency (50th, 95th, 99th percentiles)
+-   Real-time metrics visualization in Grafana
+
+Documentation:
+
+-   [MONITORING.md](MONITORING.md) - Complete monitoring documentation
+-   [TESTING.md](TESTING.md) - Testing guide and commands
+-   [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Technical details
 
 ## Run without Docker (development / manual)
 
