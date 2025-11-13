@@ -452,29 +452,29 @@ The backend exposes the following endpoints:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                       Docker Compose Stack                       │
-│                                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐                      │
-│  │ Backend  │  │ Frontend │  │ Database │                      │
-│  │  :8000   │  │  :3000   │  │  :5432   │                      │
-│  └────┬─────┘  └──────────┘  └──────────┘                      │
-│       │                                                          │
-│       │ Metrics (/metrics)        Logs (stdout/stderr)         │
+│                       Docker Compose Stack                      │
+│                                                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                       │
+│  │ Backend  │  │ Frontend │  │ Database │                       │
+│  │  :8000   │  │  :3000   │  │  :5432   │                       │
+│  └────┬─────┘  └──────────┘  └──────────┘                       │
+│       │                                                         │
+│       │ Metrics (/metrics)        Logs (stdout/stderr)          │
 │       │                                  │                      │
 │       ▼                                  ▼                      │
-│  ┌──────────┐                      ┌──────────┐                │
-│  │Prometheus│◄──Alert Rules────┐   │ Promtail │                │
-│  │  :9090   │                  │   │          │                │
-│  └────┬─────┘                  │   └────┬─────┘                │
-│       │                        │        │                      │
-│       │ Datasource             │        │ Logs                 │
-│       ▼                        │        ▼                      │
-│  ┌──────────┐                  │   ┌──────────┐                │
-│  │ Grafana  │◄─────────────────┘   │   Loki   │                │
-│  │  :3002   │◄──Datasource─────────┤  :3100   │                │
-│  └──────────┘                      └──────────┘                │
-│       │                                                          │
-│       └─ Auto-provisioned: 2 Dashboards, 2 Datasources         │
+│  ┌──────────┐                      ┌──────────┐                 │
+│  │Prometheus│◄──Alert Rules────┐   │ Promtail │                 │
+│  │  :9090   │                  │   │          │                 │
+│  └────┬─────┘                  │   └────┬─────┘                 │
+│       │                        │        │                       │
+│       │ Datasource             │        │ Logs                  │
+│       ▼                        │        ▼                       │
+│  ┌──────────┐                  │   ┌──────────┐                 │
+│  │ Grafana  │◄─────────────────┘   │   Loki   │                 │
+│  │  :3002   │◄──Datasource─────────┤  :3100   │                 │
+│  └──────────┘                      └──────────┘                 │
+│       │                                                         │
+│       └─ Auto-provisioned: 2 Dashboards, 2 Datasources          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
