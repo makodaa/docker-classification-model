@@ -1,6 +1,5 @@
 backups
 train_data
-test_data
 .venv_notebook
 .backup
 *.md
