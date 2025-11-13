@@ -1,28 +1,31 @@
 services:
     backend:
         build: ./backend
+        container_name: backend
         ports:
             - "8000:8000"
         environment:
-            - MODEL_PATH=/app/models/model.pth
-            - DATABASE_URL=postgresql://classifier_user:secure_password@database:5432/classifier_db
-        volumes:
-            - ./backend/models:/app/models
+            DATABASE_URL: postgresql://postgres:postgres@database:5432/image_classification
         depends_on:
             - database
         networks:
             - app-network
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+        restart: unless-stopped
         deploy:
             resources:
                 limits:
                     cpus: "2.0"
                     memory: 2G
-                reservations:
-                    cpus: "1.0"
-                    memory: 1G
 
     frontend:
         build: ./frontend
+        container_name: frontend
         ports:
             - "3000:80"
         depends_on:
@@ -34,23 +37,27 @@ services:
                 limits:
                     cpus: "0.5"
                     memory: 512M
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost:80/",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 3
+        restart: unless-stopped
 
     database:
         image: postgres:15-alpine
+        container_name: database
         environment:
-            - POSTGRES_DB=classifier_db
-            - POSTGRES_USER=classifier_user
-            - POSTGRES_PASSWORD=secure_password
-        ports:
-            - "5432:5432"
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
-            - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-        healthcheck:
-            test: pg_isready -U classifier_user -d classifier_db
-            interval: 10s
-            timeout: 5s
-            retries: 5
+            POSTGRES_DB: image_classification
+            POSTGRES_PASSWORD: postgres
         networks:
             - app-network
         deploy:
@@ -58,10 +65,50 @@ services:
                 limits:
                     cpus: "1.0"
                     memory: 1G
+        volumes:
+            - db_data:/var/lib/postgresql/data
+            - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        restart: unless-stopped
 
+    prometheus:
+        image: prom/prometheus:latest
+        container_name: prometheus
+        volumes:
+            - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - prometheus_data:/prometheus
+        ports:
+            - "9090:9090"
+        networks:
+            - app-network
+        restart: unless-stopped
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+
+    grafana:
+        image: grafana/grafana:9.5.0
+        container_name: grafana
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: admin
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./grafana/provisioning:/etc/grafana/provisioning:ro
+            - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+        ports:
+            - "3002:3000"
+        networks:
+            - app-network
+        restart: unless-stopped
 networks:
     app-network:
         driver: bridge
 
 volumes:
-    postgres_data:
+    db_data:
+    prometheus_data:
+    grafana_data:

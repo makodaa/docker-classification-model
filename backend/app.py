@@ -8,9 +8,10 @@ from PIL import Image
 import torch
 import torch.nn as nn
 from torchvision import transforms, models
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from database import Database
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,20 @@ device = None
 num_classes = None
 db = Database()
 
+# Prometheus metrics
+REQUEST_COUNT = Counter('prediction_requests_total', 'Total prediction requests')
+PREDICTION_PROCESSING_TIME_MS = Histogram(
+    'prediction_processing_time_ms',
+    'Prediction processing time in milliseconds',
+    buckets=(10, 50, 100, 250, 500, 1000, 2000, 5000)
+)
+
+
+@app.route('/metrics')
+def metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
 def load_model():
     global model, device, num_classes
     try:
@@ -46,7 +61,7 @@ def load_model():
         if num_classes is None:
             try:
                 # load locally first to try inferring number of classes
-                saved = torch.load(MODEL_PATH, map_location='cpu')
+                saved = torch.load(MODEL_PATH, map_location='cpu', weights_only=True)
                 if isinstance(saved, dict) and 'state_dict' in saved and isinstance(saved['state_dict'], dict):
                     saved_state = saved['state_dict']
                 elif isinstance(saved, dict):
@@ -103,7 +118,7 @@ def load_model():
             logger.warning(f"Error while replacing classifier layer: {e}")
 
         try:
-            loaded = torch.load(MODEL_PATH, map_location=device)
+            loaded = torch.load(MODEL_PATH, map_location=device, weights_only=True)
 
             # If the checkpoint is a dict, try to pull a state_dict
             state_dict = None
@@ -242,12 +257,35 @@ def predict(image_tensor, top_k=5):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'model_loaded': model is not None,
-        'labels_loaded': class_labels is not None,
-        'db_connected': bool(getattr(db, 'conn', None))
-    })
+    model_ok = model is not None
+    labels_ok = class_labels is not None
+
+    db_conn = getattr(db, 'conn', None)
+    db_ok = db_conn is not None
+
+    try:
+        if db_ok and hasattr(db_conn, 'ping'):
+            db_conn.ping()
+        elif db_ok and hasattr(db_conn, 'cursor'):
+            with db_conn.cursor() as cur:
+                cur.execute('SELECT 1')
+    except Exception:
+        db_ok = False
+
+    payload = {
+        'status': 'healthy' if (model_ok and labels_ok and db_ok) else 'unhealthy',
+        'model_loaded': model_ok,
+        'labels_loaded': labels_ok,
+        'db_connected': db_ok
+    }
+
+    # Log payload content
+    try:
+        logger.info("Health check payload: %s", json.dumps(payload))
+    except Exception:
+        logger.info("Health check payload: %s", str(payload))
+
+    return (jsonify(payload), 200) if payload['status'] == 'healthy' else (jsonify(payload), 503)
 
 
 @app.route('/info', methods=['GET'])
@@ -317,6 +355,9 @@ def predict_endpoint():
     top_k = min(max(1, top_k), max_k)
     
     try:
+        # Record that a prediction request was received
+        REQUEST_COUNT.inc()
+
         logger.info(f"Processing image: {file.filename}")
 
         # timing for processing
@@ -329,6 +370,13 @@ def predict_endpoint():
         result['filename'] = file.filename
         result.setdefault('model_info', {})
         result['model_info']['processing_time_ms'] = processing_time_ms
+
+        # Observe processing time in Prometheus histogram (ms)
+        try:
+            PREDICTION_PROCESSING_TIME_MS.observe(processing_time_ms)
+        except Exception:
+            # metrics should never break the request flow
+            logger.debug("Failed to record processing time metric")
 
         try:
             if not getattr(db, 'conn', None):
