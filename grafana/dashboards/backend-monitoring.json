@@ -25,7 +25,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -103,7 +103,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "rate(prediction_requests_total[1m])",
                     "refId": "A"
@@ -115,7 +115,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -166,7 +166,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "prediction_requests_total",
                     "refId": "A"
@@ -178,7 +178,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -256,7 +256,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "histogram_quantile(0.50, rate(prediction_processing_time_ms_bucket[1m]))",
                     "legendFormat": "50th percentile (median)",
@@ -265,7 +265,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "histogram_quantile(0.95, rate(prediction_processing_time_ms_bucket[1m]))",
                     "legendFormat": "95th percentile",
@@ -274,7 +274,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "histogram_quantile(0.99, rate(prediction_processing_time_ms_bucket[1m]))",
                     "legendFormat": "99th percentile",
@@ -283,7 +283,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "rate(prediction_processing_time_ms_sum[1m]) / rate(prediction_processing_time_ms_count[1m])",
                     "legendFormat": "Average",
@@ -296,7 +296,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -338,7 +338,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "sum(increase(prediction_processing_time_ms_bucket[5m])) by (le)",
                     "legendFormat": "{{le}} ms",
@@ -351,7 +351,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -402,7 +402,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "rate(prediction_processing_time_ms_sum[1m]) / rate(prediction_processing_time_ms_count[1m])",
                     "refId": "A"
@@ -414,7 +414,7 @@
         {
             "datasource": {
                 "type": "prometheus",
-                "uid": "Prometheus"
+                "uid": "prometheus"
             },
             "fieldConfig": {
                 "defaults": {
@@ -465,7 +465,7 @@
                 {
                     "datasource": {
                         "type": "prometheus",
-                        "uid": "Prometheus"
+                        "uid": "prometheus"
                     },
                     "expr": "histogram_quantile(0.95, rate(prediction_processing_time_ms_bucket[1m]))",
                     "refId": "A"

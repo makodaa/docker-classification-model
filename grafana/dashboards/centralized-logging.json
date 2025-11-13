@@ -3,7 +3,10 @@
         "list": [
             {
                 "builtIn": 1,
-                "datasource": "-- Grafana --",
+                "datasource": {
+                    "type": "datasource",
+                    "uid": "grafana"
+                },
                 "enable": true,
                 "hide": true,
                 "iconColor": "rgba(0, 211, 255, 1)",
@@ -19,7 +22,10 @@
     "links": [],
     "panels": [
         {
-            "datasource": "Loki",
+            "datasource": {
+                "type": "loki",
+                "uid": "loki"
+            },
             "fieldConfig": {
                 "defaults": {
                     "custom": {}
@@ -50,7 +56,7 @@
             "type": "logs"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "custom": {}
@@ -81,7 +87,7 @@
             "type": "logs"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "color": {
@@ -158,7 +164,7 @@
             "type": "timeseries"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "color": {
@@ -235,7 +241,7 @@
             "type": "timeseries"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "custom": {}
@@ -266,7 +272,7 @@
             "type": "logs"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "custom": {}
@@ -297,7 +303,7 @@
             "type": "logs"
         },
         {
-            "datasource": "Loki",
+            "datasource": { "type": "loki", "uid": "loki" },
             "fieldConfig": {
                 "defaults": {
                     "custom": {}

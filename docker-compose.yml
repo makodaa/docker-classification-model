@@ -75,6 +75,24 @@ services:
             retries: 5
         restart: unless-stopped
 
+    backup:
+        image: postgres:15-alpine
+        container_name: backup-service
+        environment:
+            - PGPASSWORD=postgres
+            - POSTGRES_DB=image_classification
+            - POSTGRES_USER=postgres
+            - BACKUP_RETENTION_DAYS=7
+        volumes:
+            - ./backups:/backups
+            - ./scripts/backup.sh:/scripts/backup.sh:ro
+        networks:
+            - app-network
+        command: sh /scripts/backup.sh
+        restart: unless-stopped
+        depends_on:
+            - database
+
     prometheus:
         image: prom/prometheus:latest
         container_name: prometheus
